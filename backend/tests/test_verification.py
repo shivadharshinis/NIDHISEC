@@ -527,3 +527,97 @@ def test_document_download_and_integrity_after_assignment(client, actors, fdr, d
     assert client.get(f"{base}/download", headers=actors.headers["bank"]).status_code == 409
     assert submit(client, actors.headers["bank"], assignment["id"], assignment["version"],
                   evidence_document_ids=[doc["id"]]).status_code == 201
+
+
+# ---------- AICTE queue: outcomes awaiting a decision ----------
+
+
+def awaiting(client, actors, who="aicte", **params):
+    return client.get("/api/verification/awaiting-decision", params=params, headers=actors.headers[who])
+
+
+def dashboard_count(client, actors):
+    return client.get("/api/dashboard/summary", headers=actors.headers["aicte"]).json()["verification_outcomes_awaiting_decision"]
+
+
+def with_outcome(client, actors, fdr, outcome="CONFIRMED_AGAINST_BANK_RECORDS"):
+    assignment = assign(client, actors, fdr["id"], actors.user["bank"].id).json()
+    response = submit(client, actors.headers["bank"], assignment["id"], assignment["version"], outcome=outcome)
+    assert response.status_code == 201, response.text
+    return assignment, response.json()["outcome"]
+
+
+def test_awaiting_decision_inclusion_and_exclusion(client, actors, fdr, create_fdr, db):
+    # Not yet assigned / case still open: not awaiting a decision.
+    assert awaiting(client, actors).json()["total"] == 0
+    open_case = create_fdr(actors.headers["inst_b"], fdr_number="AWAIT-OPEN")
+    assign(client, actors, open_case["id"], actors.user["bank"].id)
+    assert awaiting(client, actors).json()["total"] == 0
+
+    assignment, outcome = with_outcome(client, actors, fdr, "DETAILS_MISMATCH")
+    body = awaiting(client, actors).json()
+    assert body["total"] == 1 == dashboard_count(client, actors)
+    item = body["items"][0]
+    assert (item["fdr_id"], item["fdr_number"], item["fdr_status"], item["lifecycle_status"]) == (fdr["id"], "VER-A-1", "UNDER_REVIEW", "ACTIVE")
+    assert item["institution"]["id"] == actors.institution_a.id
+    assert (item["outcome_id"], item["outcome"], item["assignment_id"]) == (outcome["id"], "DETAILS_MISMATCH", assignment["id"])
+    assert item["officer"]["id"] == actors.user["bank"].id
+    assert "notes" not in item  # details stay on the record page
+
+    # An AICTE decision removes it; marking it under review again later does not bring the old outcome back.
+    assert review(client, actors, fdr["id"], "CLARIFICATION_REQUESTED", remarks="Please re-check the amount").status_code == 200
+    assert awaiting(client, actors).json()["total"] == 0 == dashboard_count(client, actors)
+    assert review(client, actors, fdr["id"], "UNDER_REVIEW").status_code == 200
+    assert awaiting(client, actors).json()["total"] == 0 == dashboard_count(client, actors)
+
+    # A new outcome after that decision is awaiting again; an open case hides it until its outcome arrives.
+    second = assign(client, actors, fdr["id"], actors.user["bank"].id).json()
+    assert awaiting(client, actors).json()["total"] == 0
+    submit(client, actors.headers["bank"], second["id"], second["version"])
+    item = awaiting(client, actors).json()["items"][0]
+    assert item["assignment_id"] == second["id"] and item["outcome"] == "CONFIRMED_AGAINST_BANK_RECORDS"
+
+    # Accepting decides it.
+    assert review(client, actors, fdr["id"], "ACCEPTED").status_code == 200
+    assert awaiting(client, actors).json()["total"] == 0 == dashboard_count(client, actors)
+
+
+def test_awaiting_decision_excludes_instruments_that_are_history(client, actors, fdr, db):
+    with_outcome(client, actors, fdr)
+    assert awaiting(client, actors).json()["total"] == 1
+    db.execute(text("UPDATE fdrs SET lifecycle_status = 'CANCELLED' WHERE id = :id"), {"id": fdr["id"]})
+    db.commit()
+    assert awaiting(client, actors).json()["total"] == 0 == dashboard_count(client, actors)
+
+
+def test_awaiting_decision_pagination_and_sorting(client, actors, create_fdr):
+    created = [create_fdr(actors.headers["inst_a" if n % 2 else "inst_b"], fdr_number=f"AWAIT-{n}") for n in range(5)]
+    # Outcomes are recorded in this order, so the queue (oldest outcome first) must follow it.
+    order = [created[3], created[0], created[4], created[1], created[2]]
+    for record in order:
+        with_outcome(client, actors, record)
+
+    first = awaiting(client, actors, page_size=2).json()
+    second = awaiting(client, actors, page_size=2, page=2).json()
+    third = awaiting(client, actors, page_size=2, page=3).json()
+    assert (first["total"], first["pages"]) == (5, 3)
+    assert dashboard_count(client, actors) == 5
+    ids = [i["fdr_id"] for page in (first, second, third) for i in page["items"]]
+    assert ids == [r["id"] for r in order]
+    stamps = [i["outcome_submitted_at"] for page in (first, second, third) for i in page["items"]]
+    assert stamps == sorted(stamps)
+    assert awaiting(client, actors, page_size=2).json()["items"] == first["items"]  # deterministic
+    assert awaiting(client, actors, page_size=500).status_code == 422
+    assert awaiting(client, actors, page=0).status_code == 422
+
+
+def test_awaiting_decision_is_aicte_only(client, actors, fdr):
+    with_outcome(client, actors, fdr)
+    for who in ("inst_a", "inst_b", "bank"):
+        response = awaiting(client, actors, who=who)
+        assert response.status_code == 403, who
+        assert "VER-A-1" not in response.text
+    assert client.get("/api/verification/awaiting-decision").status_code == 401
+    # Listing records no decision and changes nothing.
+    detail = client.get(f"/api/fdrs/{fdr['id']}", headers=actors.headers["aicte"]).json()
+    assert detail["status"] == "UNDER_REVIEW" and history(client, actors, fdr["id"])["decisions"] == []

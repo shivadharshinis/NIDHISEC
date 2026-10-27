@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
@@ -11,6 +11,7 @@ from app.models import (
     AssignmentStatus,
     FDRDocument,
     FDRStatus,
+    LifecycleStatus,
     ReviewDecision,
     User,
     UserRole,
@@ -67,6 +68,40 @@ def can_accept(db: Session, fdr: FDR) -> bool:
         return False
     outcome = latest_outcome(db, fdr.id)
     return outcome is not None and outcome.outcome == VerificationOutcomeType.CONFIRMED_AGAINST_BANK_RECORDS
+
+
+def awaiting_decision_conditions() -> list:
+    """FDRs whose bank outcome is awaiting an AICTE decision.
+
+    The single definition used by both the dashboard count and the review
+    queue: under review, still an active or proposed instrument, a bank outcome
+    recorded after the last AICTE review decision, and no verification case open.
+    """
+    last_decision = (
+        select(func.max(ReviewDecision.decided_at)).where(ReviewDecision.fdr_id == FDR.id).correlate(FDR).scalar_subquery()
+    )
+    # Correlated to FDR only, so these work inside queries that also join outcomes or assignments.
+    newer_outcome = (
+        select(VerificationOutcome.id)
+        .where(
+            VerificationOutcome.fdr_id == FDR.id,
+            VerificationOutcome.submitted_at > func.coalesce(last_decision, "1900-01-01"),
+        )
+        .correlate(FDR)
+        .exists()
+    )
+    open_case = (
+        select(VerificationAssignment.id)
+        .where(VerificationAssignment.fdr_id == FDR.id, VerificationAssignment.status == AssignmentStatus.ACTIVE)
+        .correlate(FDR)
+        .exists()
+    )
+    return [
+        FDR.status == FDRStatus.UNDER_REVIEW,
+        FDR.lifecycle_status.in_([LifecycleStatus.ACTIVE, LifecycleStatus.PROPOSED]),
+        newer_outcome,
+        ~open_case,
+    ]
 
 
 def officer_active_assignment(db: Session, officer: User, fdr_id: int) -> VerificationAssignment | None:

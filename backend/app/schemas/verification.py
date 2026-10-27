@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import AssignmentStatus, FDRStatus, VerificationOutcomeType
+from app.models.enums import AssignmentStatus, FDRStatus, LifecycleStatus, VerificationOutcomeType
 from app.schemas.common import InstitutionBrief
 from app.schemas.document import DocumentRead
 
@@ -170,3 +170,20 @@ class BankCase(BaseModel):
     documents: list[DocumentRead]
     outcome: OutcomeRead | None
     can_submit_outcome: bool
+
+
+class AwaitingDecisionItem(BaseModel):
+    """An FDR whose bank outcome awaits an AICTE decision (AICTE only)."""
+
+    fdr_id: int
+    fdr_number: str
+    bank_name: str
+    institution: InstitutionBrief
+    fdr_status: FDRStatus
+    lifecycle_status: LifecycleStatus
+    # The most recent bank outcome: what the decision is about.
+    outcome_id: int
+    outcome: VerificationOutcomeType
+    outcome_submitted_at: datetime
+    officer: UserBrief
+    assignment_id: int

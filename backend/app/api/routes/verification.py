@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import CurrentUser, DbSession, require_roles
 from app.models import (
@@ -31,6 +31,7 @@ from app.schemas.verification import (
     AssignmentQueueItem,
     AssignmentRead,
     AssignmentReassign,
+    AwaitingDecisionItem,
     BankCase,
     BankCaseSummary,
     CaseFDRView,
@@ -109,6 +110,52 @@ def list_assignments(
     ).unique().all()
     return Page[AssignmentQueueItem](
         items=[verification_service.to_queue_item(row) for row in rows], total=total, page=page, page_size=page_size
+    )
+
+
+@router.get("/verification/awaiting-decision", response_model=Page[AwaitingDecisionItem])
+def awaiting_decision(
+    _user: AicteUser,
+    db: DbSession,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> Page[AwaitingDecisionItem]:
+    """FDRs whose bank outcome awaits an AICTE decision, oldest outcome first (AICTE only).
+
+    Uses the same definition as the dashboard count. Listing changes nothing;
+    decisions are recorded through the existing review endpoint.
+    """
+    conditions = verification_service.awaiting_decision_conditions()
+    latest = (
+        select(VerificationOutcome.fdr_id, func.max(VerificationOutcome.id).label("outcome_id"))
+        .group_by(VerificationOutcome.fdr_id)
+        .subquery()
+    )
+    query = (
+        select(FDR, VerificationOutcome)
+        .join(latest, latest.c.fdr_id == FDR.id)
+        .join(VerificationOutcome, VerificationOutcome.id == latest.c.outcome_id)
+        .where(*conditions)
+    )
+    total = db.scalar(select(func.count()).select_from(FDR).where(*conditions)) or 0
+    rows = db.execute(
+        query.options(joinedload(FDR.institution), joinedload(VerificationOutcome.officer))
+        .order_by(VerificationOutcome.submitted_at.asc(), FDR.id.asc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).unique().all()
+    return Page[AwaitingDecisionItem](
+        items=[
+            AwaitingDecisionItem(
+                fdr_id=fdr.id, fdr_number=fdr.fdr_number, bank_name=fdr.bank_name,
+                institution=InstitutionBrief.model_validate(fdr.institution), fdr_status=fdr.status,
+                lifecycle_status=fdr.lifecycle_status, outcome_id=outcome.id, outcome=outcome.outcome,
+                outcome_submitted_at=outcome.submitted_at, officer=UserBrief.model_validate(outcome.officer),
+                assignment_id=outcome.assignment_id,
+            )
+            for fdr, outcome in rows
+        ],
+        total=total, page=page, page_size=page_size,
     )
 
 

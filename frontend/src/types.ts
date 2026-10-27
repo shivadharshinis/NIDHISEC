@@ -525,3 +525,41 @@ export interface DashboardSummary {
   cases_closed_other: number | null
   unread_notifications: number
 }
+
+/** GET /verification/awaiting-decision (AICTE only). Mirrors AwaitingDecisionItem. */
+export interface AwaitingDecisionItem {
+  fdr_id: number
+  fdr_number: string
+  bank_name: string
+  institution: InstitutionBrief
+  fdr_status: FdrStatus
+  lifecycle_status: LifecycleStatus
+  outcome_id: number
+  outcome: OutcomeType
+  outcome_submitted_at: string
+  officer: UserBrief
+  assignment_id: number
+}
+
+/** GET /reports/summary (AICTE only). Mirrors backend/app/schemas/reports.py. */
+export interface ReportSummary {
+  as_of: string
+  generated_at: string
+  scope_note: string
+  fdr_total: number
+  fdr_by_status: Record<string, number>
+  fdr_by_lifecycle: Record<string, number>
+  lifecycle_requests: { request_type: LifecycleRequestType; status: LifecycleRequestStatus; count: number }[]
+  monitored_total: number
+  maturity: { bucket: string; label: string; count: number; total_amount: string }[]
+  institutions: {
+    institution: InstitutionBrief
+    total_fdrs: number
+    by_status: Record<string, number>
+    active_instruments: number
+    active_amount: string
+    maturing_within_30_days: number
+    overdue_active: number
+    open_lifecycle_requests: number
+  }[]
+}

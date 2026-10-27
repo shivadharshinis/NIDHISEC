@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { apiGet, apiRequest, setAuthToken, setUnauthorizedHandler } from '../lib/api'
+import { ApiError, apiGet, apiRequest, setAuthToken, setUnauthorizedHandler } from '../lib/api'
 import type { Role, TokenResponse, User } from '../types'
 
 // sessionStorage: the session ends when the tab closes. See README "Security limitations".
@@ -15,6 +15,8 @@ type AuthState =
   // signedOut: the user chose to sign out, so the next login starts fresh at the dashboard.
   | { status: 'anonymous'; notice?: string; signedOut?: boolean }
   | { status: 'authenticated'; user: User; expiresAt: string }
+  // The stored session could not be checked because the server was unreachable; it is kept, not discarded.
+  | { status: 'unreachable' }
 
 interface AuthContextValue {
   state: AuthState
@@ -23,6 +25,8 @@ interface AuthContextValue {
   /** Ends the session. Pass a notice when the session ended for the user (e.g. expiry). */
   logout: (notice?: string) => void
   hasRole: (...roles: Role[]) => boolean
+  /** Re-check a stored session after the server was unreachable. */
+  retrySession: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -49,6 +53,7 @@ function writeSession(session: StoredSession | null) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' })
+  const [restoreAttempt, setRestoreAttempt] = useState(0)
 
   const logout = useCallback((notice?: string) => {
     writeSession(null)
@@ -65,14 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     setAuthToken(session.token)
+    setState({ status: 'loading' })
     const controller = new AbortController()
     apiGet<User>('/auth/me', { signal: controller.signal })
       .then((user) => setState({ status: 'authenticated', user, expiresAt: session.expiresAt }))
-      .catch(() => {
-        if (!controller.signal.aborted) logout()
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        // Only a rejected session ends it (401, already handled by the unauthorized handler).
+        // A network failure or server error keeps the session so the user can retry.
+        if (error instanceof ApiError && error.status === 401) return
+        if (error instanceof ApiError && (error.status === undefined || error.status >= 500)) {
+          setState({ status: 'unreachable' })
+          return
+        }
+        logout()
       })
     return () => controller.abort()
-  }, [logout])
+  }, [logout, restoreAttempt])
 
   // Any 401 from the API ends the session.
   useEffect(() => {
@@ -108,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       hasRole: (...roles: Role[]) => user !== null && roles.includes(user.role),
+      retrySession: () => setRestoreAttempt((n) => n + 1),
     }
   }, [state, login, logout])
 

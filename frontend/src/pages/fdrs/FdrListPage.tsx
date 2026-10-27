@@ -5,7 +5,7 @@ import { useCurrentUser } from '../../auth/AuthContext'
 import { Alert, Card, DuplicateBadge, PageHeader, Spinner, StatusBadge, buttonStyles, inputStyles } from '../../components/ui'
 import { useApiQuery } from '../../hooks/useApiQuery'
 import { toQuery } from '../../lib/api'
-import { formatDate, formatINR, STATUS_LABELS } from '../../lib/format'
+import { formatDate, formatINR, LIFECYCLE_STATUS_LABELS, STATUS_LABELS } from '../../lib/format'
 import type { FdrListItem, FdrStatus, InstitutionBrief, Page } from '../../types'
 
 const PAGE_SIZE = 20
@@ -226,7 +226,13 @@ export default function FdrListPage() {
                       {formatINR(fdr.amount)}
                     </td>
                     <td className="px-4 py-3 align-top whitespace-nowrap text-slate-700">{formatDate(fdr.maturity_date)}</td>
-                    <td className="px-4 py-3 align-top"><StatusBadge status={fdr.status} /></td>
+                    <td className="px-4 py-3 align-top">
+                      <StatusBadge status={fdr.status} />
+                      {/* Superseded, released, proposed or cancelled instruments are not live records. */}
+                      {fdr.lifecycle_status !== 'ACTIVE' && (
+                        <div className="mt-1 text-xs font-medium text-slate-600">{LIFECYCLE_STATUS_LABELS[fdr.lifecycle_status]}</div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -423,3 +423,28 @@ def test_failed_write_leaves_no_partial_file(actors, fdr_a, db, monkeypatch):
     assert response.status_code == 500
     assert stored_files() == []  # no .part leftovers either
     assert db.scalar(select(FDRDocument.id)) is None
+
+
+def test_missing_fdr_copy_filter(client, actors, create_fdr):
+    inst_a = actors.headers["inst_a"]
+    with_copy = create_fdr(inst_a, fdr_number="COPY-1")
+    only_letter = create_fdr(inst_a, fdr_number="COPY-2")
+    withdrawn = create_fdr(inst_a, fdr_number="COPY-3")
+    nothing = create_fdr(inst_a, fdr_number="COPY-4")
+    create_fdr(actors.headers["inst_b"], fdr_number="COPY-B")  # other institution, no documents
+
+    upload(client, inst_a, with_copy["id"], PDF_BYTES)
+    upload(client, inst_a, only_letter["id"], PNG_BYTES, filename="letter.png", document_type="BANK_LETTER")
+    doc = upload(client, inst_a, withdrawn["id"], JPEG_BYTES, filename="copy.jpg").json()
+    client.post(f"/api/fdrs/{withdrawn['id']}/documents/{doc['id']}/withdraw", json={"reason": "Wrong file"}, headers=inst_a)
+
+    def missing(headers):
+        response = client.get("/api/fdrs", params={"missing_fdr_copy": True, "sort": "oldest"}, headers=headers)
+        assert response.status_code == 200
+        return [item["fdr_number"] for item in response.json()["items"]]
+
+    assert missing(inst_a) == ["COPY-2", "COPY-3", "COPY-4"]  # institution-scoped, as before
+    assert missing(actors.headers["aicte"]) == ["COPY-2", "COPY-3", "COPY-4", "COPY-B"]
+    assert missing(actors.headers["inst_b"]) == ["COPY-B"]
+    assert nothing["fdr_number"] in missing(inst_a)
+    assert client.get("/api/fdrs", params={"missing_fdr_copy": True}, headers=actors.headers["bank"]).status_code == 403

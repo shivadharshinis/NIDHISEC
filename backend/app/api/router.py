@@ -12,6 +12,7 @@ from app.api.routes import (
     institutions,
     lifecycle,
     notifications,
+    reports,
     screening,
     verification,
 )
@@ -26,5 +27,6 @@ api_router.include_router(screening.router)
 api_router.include_router(lifecycle.router)
 api_router.include_router(notifications.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(reports.router)
 api_router.include_router(institutions.router)
 api_router.include_router(audit_logs.router)

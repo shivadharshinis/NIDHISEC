@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from app.api.deps import CurrentUser, DbSession, require_roles
@@ -10,6 +10,8 @@ from app.models import (
     FDR,
     AssignmentStatus,
     AuditLog,
+    DocumentType,
+    FDRDocument,
     FDRStatus,
     Institution,
     LifecycleStatus,
@@ -114,6 +116,9 @@ def list_fdrs(
     maturity_from: date | None = None,
     maturity_to: date | None = None,
     duplicates_only: bool = False,
+    missing_fdr_copy: Annotated[
+        bool, Query(description="Only records without a current (non-withdrawn) document of type FDR copy")
+    ] = False,
     sort: SortOption = "newest",
 ) -> Page[FDRListItem]:
     query = fdr_service.scoped_fdr_query(user).join(FDR.institution)
@@ -139,6 +144,12 @@ def list_fdrs(
         query = query.where(FDR.maturity_date <= maturity_to)
     if duplicates_only:
         query = query.where(fdr_service.has_duplicate_clause())
+    if missing_fdr_copy:
+        query = query.where(~exists().where(
+            FDRDocument.fdr_id == FDR.id,
+            FDRDocument.document_type == DocumentType.FDR_COPY,
+            FDRDocument.withdrawn_at.is_(None),
+        ))
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(

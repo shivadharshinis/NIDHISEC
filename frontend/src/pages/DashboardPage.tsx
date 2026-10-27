@@ -128,7 +128,7 @@ function ActionSummary() {
     tiles.push({ label: 'Open renewal / replacement requests', value: sum(d.lifecycle_requests_open) - (d.lifecycle_requests_open?.RELEASE ?? 0), to: '/renewals' })
     tiles.push({ label: 'Open release requests', value: d.lifecycle_requests_open?.RELEASE ?? 0, to: '/release-requests' })
   } else if (d?.role === 'AICTE_OFFICIAL') {
-    tiles.push({ label: 'Bank outcomes awaiting your decision', value: v(d.verification_outcomes_awaiting_decision), to: '/verification' })
+    tiles.push({ label: 'Bank outcomes awaiting your decision', value: v(d.verification_outcomes_awaiting_decision), to: '/verification?view=awaiting' })
     tiles.push({ label: 'Active verification cases', value: v(d.verification_active), to: '/verification' })
     tiles.push({ label: 'Unreviewed high-priority screening findings', value: v(d.screening_unreviewed_high), to: '/screening' })
     tiles.push({ label: 'Renewal / replacement requests to decide', value: (d.lifecycle_requests_awaiting_decision?.RENEWAL ?? 0) + (d.lifecycle_requests_awaiting_decision?.REPLACEMENT ?? 0), to: '/renewals' })
@@ -139,7 +139,12 @@ function ActionSummary() {
   }
   return (
     <section aria-labelledby="actions-title" aria-busy={result.status === 'loading'}>
-      <h2 id="actions-title" className="text-sm font-semibold text-slate-900">Action needed</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="actions-title" className="text-sm font-semibold text-slate-900">Action needed</h2>
+        {d && d.role !== 'BANK_OFFICER' && (
+          <Link to="/action-centre" className="text-xs font-medium text-navy-600 hover:text-navy-800">Open Action Centre →</Link>
+        )}
+      </div>
       {!d ? <Card className="mt-3 p-4 text-sm text-slate-500">Loading…</Card> : (
         <Card className="mt-3 divide-y divide-slate-100">
           {tiles.map((t) => (

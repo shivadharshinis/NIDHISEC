@@ -12,10 +12,8 @@ from app.models import (
     FDRStatus,
     LifecycleRequestStatus,
     LifecycleStatus,
-    ReviewDecision,
     UserRole,
     VerificationAssignment,
-    VerificationOutcome,
 )
 from app.models.enums import FindingSeverity
 from app.models.lifecycle import LifecycleRequest, Notification
@@ -23,6 +21,7 @@ from app.models.screening import ScreeningFinding, ScreeningReview, ScreeningRun
 from app.schemas.fdr import today_ist
 from app.schemas.lifecycle import DashboardSummary
 from app.services.lifecycle import OPEN_STATUSES
+from app.services.verification import awaiting_decision_conditions
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -81,16 +80,8 @@ def summary(user: CurrentUser, db: DbSession) -> DashboardSummary:
                                                          LifecycleRequest.status == LifecycleRequestStatus.APPROVED)
     base.verification_active = _count(db, VerificationAssignment, VerificationAssignment.status == AssignmentStatus.ACTIVE)
 
-    # Under review, an outcome exists that is newer than the last AICTE decision, and no case is open.
-    last_decision = (select(func.max(ReviewDecision.decided_at)).where(ReviewDecision.fdr_id == FDR.id)
-                     .correlate(FDR).scalar_subquery())
-    newer_outcome = exists().where(VerificationOutcome.fdr_id == FDR.id,
-                                   VerificationOutcome.submitted_at > func.coalesce(last_decision, "1900-01-01"))
-    open_case = exists().where(VerificationAssignment.fdr_id == FDR.id,
-                               VerificationAssignment.status == AssignmentStatus.ACTIVE)
-    base.verification_outcomes_awaiting_decision = _count(
-        db, FDR, FDR.status == FDRStatus.UNDER_REVIEW,
-        FDR.lifecycle_status.in_([LifecycleStatus.ACTIVE, LifecycleStatus.PROPOSED]), newer_outcome, ~open_case)
+    # Same definition as the review queue (GET /verification/awaiting-decision).
+    base.verification_outcomes_awaiting_decision = _count(db, FDR, *awaiting_decision_conditions())
 
     # Unreviewed findings in each FDR's latest screening run.
     latest = (select(ScreeningRun.fdr_id, func.max(ScreeningRun.run_number).label("run_number"))

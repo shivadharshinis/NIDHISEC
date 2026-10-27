@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router'
 import { RequireAuth, RequireRole } from './auth/guards'
 import AppLayout from './components/layout/AppLayout'
 import { NAV_ITEMS } from './navigation'
+import ActionCentrePage from './pages/ActionCentrePage'
 import AuditLogPage from './pages/AuditLogPage'
 import DashboardPage from './pages/DashboardPage'
 import FdrDetailPage from './pages/fdrs/FdrDetailPage'
@@ -14,6 +15,7 @@ import LifecycleQueuePage from './pages/lifecycle/LifecycleQueuePage'
 import LifecycleRequestPage from './pages/lifecycle/LifecycleRequestPage'
 import NotificationsPage from './pages/NotificationsPage'
 import PlaceholderPage from './pages/PlaceholderPage'
+import ReportsPage from './pages/ReportsPage'
 import ScreeningQueuePage from './pages/ScreeningQueuePage'
 import BankCasePage from './pages/verification/BankCasePage'
 import VerificationPage from './pages/verification/VerificationPage'
@@ -79,6 +81,15 @@ export default function App() {
           />
 
           <Route
+            path="action-centre"
+            element={
+              <RequireRole roles={['INSTITUTION', 'AICTE_OFFICIAL']}>
+                <ActionCentrePage />
+              </RequireRole>
+            }
+          />
+
+          <Route
             path="screening"
             element={
               <RequireRole roles={['AICTE_OFFICIAL']}>
@@ -112,6 +123,15 @@ export default function App() {
             }
           />
           <Route path="notifications" element={<NotificationsPage />} />
+
+          <Route
+            path="reports"
+            element={
+              <RequireRole roles={['AICTE_OFFICIAL']}>
+                <ReportsPage />
+              </RequireRole>
+            }
+          />
 
           <Route
             path="audit-logs"
