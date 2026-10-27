@@ -1,0 +1,31 @@
+{
+  "name": "nidhisec-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NidhiSec - AICTE Security Deposit / FDR Management Portal (frontend)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "0.515.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-router": "7.18.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.10",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.5.2",
+    "tailwindcss": "4.1.10",
+    "typescript": "5.8.3",
+    "vite": "6.4.4"
+  },
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node@4.64.5"
+  }
+}

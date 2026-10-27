@@ -1,0 +1,58 @@
+# ---------- Secrets & environment ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# ---------- Python ----------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- Local databases ----------
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+backend/data/*
+!backend/data/.gitkeep
+
+# ---------- Uploaded / private documents ----------
+# FDR scans and supporting documents must never be committed.
+uploads/
+backend/uploads/
+backend/storage/
+media/
+
+# ---------- Node / frontend build output ----------
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+*.local
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+
+# ---------- Editor / OS ----------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

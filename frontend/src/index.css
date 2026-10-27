@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* NidhiSec navy palette for brand surfaces (sidebar, primary actions). */
+  --color-navy-50: #eef3fb;
+  --color-navy-100: #d9e3f5;
+  --color-navy-200: #b3c6ea;
+  --color-navy-300: #839fd9;
+  --color-navy-400: #5677c2;
+  --color-navy-500: #3a5aa8;
+  --color-navy-600: #2c4688;
+  --color-navy-700: #23386d;
+  --color-navy-800: #1b2b54;
+  --color-navy-900: #13203f;
+  --color-navy-950: #0c152b;
+}
+
+@layer base {
+  html {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-navy-500;
+  }
+}
