@@ -25,7 +25,8 @@ export default function FdrListPage() {
   const [params, setParams] = useSearchParams()
 
   const q = params.get('q') ?? ''
-  const status = params.get('status') ?? ''
+  // Several statuses can be requested at once (e.g. the dashboard's Pending card).
+  const statuses = params.getAll('status').filter((s): s is FdrStatus => s in STATUS_LABELS)
   const institutionId = params.get('institution_id') ?? ''
   const duplicatesOnly = params.get('duplicates') === '1'
   const maturityFrom = params.get('maturity_from') ?? ''
@@ -56,7 +57,7 @@ export default function FdrListPage() {
     page,
     page_size: PAGE_SIZE,
     q,
-    status,
+    status: statuses,
     institution_id: isAicte ? institutionId : '',
     duplicates_only: duplicatesOnly,
     maturity_from: maturityFrom,
@@ -66,7 +67,7 @@ export default function FdrListPage() {
   const result = useApiQuery<Page<FdrListItem>>(path)
   const institutions = useApiQuery<InstitutionBrief[]>(isAicte ? '/institutions' : null)
 
-  const hasFilters = Boolean(q || status || institutionId || duplicatesOnly || maturityFrom || maturityTo)
+  const hasFilters = Boolean(q || statuses.length || institutionId || duplicatesOnly || maturityFrom || maturityTo)
   const data = result.data
 
   return (
@@ -105,10 +106,13 @@ export default function FdrListPage() {
           <select
             aria-label="Status"
             className={inputStyles}
-            value={status}
+            value={statuses.length > 1 ? 'MULTIPLE' : (statuses[0] ?? '')}
             onChange={(e) => updateParams({ status: e.target.value })}
           >
             <option value="">All statuses</option>
+            {statuses.length > 1 && (
+              <option value="MULTIPLE" disabled>{statuses.map((s) => STATUS_LABELS[s]).join(' / ')}</option>
+            )}
             {STATUSES.map((s) => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
             ))}

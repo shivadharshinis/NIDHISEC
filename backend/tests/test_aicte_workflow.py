@@ -130,3 +130,45 @@ def test_case_list_shows_amount_only_while_open(client, actors, create_fdr):
     submit(client, bank, assignment["id"], assignment["version"])
     closed = client.get("/api/verification/cases", params={"state": "closed"}, headers=bank).json()["items"][0]
     assert closed["status"] == "COMPLETED" and closed["amount"] is None and closed["maturity_date"] is None
+
+
+PENDING = ("SUBMITTED", "UNDER_REVIEW", "CLARIFICATION_REQUESTED")
+
+
+def headline_counts(client, headers) -> tuple[int, int, int]:
+    """Pending / Approved / Rejected as the dashboard cards compute them from /fdrs/summary."""
+    by_status = client.get("/api/fdrs/summary", headers=headers).json()["by_status"]
+    return sum(by_status[s] for s in PENDING), by_status["ACCEPTED"], by_status["REJECTED"]
+
+
+def test_dashboard_counts_follow_approval_and_rejection(client, actors, create_fdr):
+    a, b, aicte = actors.headers["inst_a"], actors.headers["inst_b"], actors.headers["aicte"]
+    to_accept = create_fdr(a, fdr_number="CNT-ACCEPT")
+    to_reject = create_fdr(a, fdr_number="CNT-REJECT")
+    clarify = create_fdr(a, fdr_number="CNT-CLARIFY")
+    create_fdr(b, fdr_number="CNT-OTHER")
+    assert headline_counts(client, aicte) == (4, 0, 0)
+    assert headline_counts(client, a) == (3, 0, 0)
+
+    assert review(client, actors, clarify["id"], "CLARIFICATION_REQUESTED", remarks="Upload the FDR copy").status_code == 200
+    assert headline_counts(client, aicte) == (4, 0, 0)  # still pending
+
+    assert review(client, actors, to_reject["id"], "REJECTED", remarks="Receipt does not match").status_code == 200
+    assert headline_counts(client, aicte) == (3, 0, 1)
+
+    assignment = assign(client, actors, to_accept["id"], actors.user["bank"].id).json()
+    submit(client, actors.headers["bank"], assignment["id"], assignment["version"])
+    assert headline_counts(client, aicte) == (3, 0, 1)  # a bank outcome alone does not approve
+    assert review(client, actors, to_accept["id"], "ACCEPTED", remarks="Bank confirmed").status_code == 200
+    assert headline_counts(client, aicte) == (2, 1, 1)
+
+    # Each user counts only the records they may see.
+    assert headline_counts(client, a) == (1, 1, 1)
+    assert headline_counts(client, b) == (1, 0, 0)
+    assert client.get("/api/fdrs/summary", headers=actors.headers["bank"]).status_code == 403
+
+    # The cards' list filters return exactly the counted records.
+    def listed(headers, *statuses):
+        return client.get("/api/fdrs", params={"status": list(statuses)}, headers=headers).json()["total"]
+    assert listed(aicte, *PENDING) == 2 and listed(aicte, "ACCEPTED") == 1 and listed(aicte, "REJECTED") == 1
+    assert listed(b, *PENDING) == 1 and listed(b, "ACCEPTED") == 0

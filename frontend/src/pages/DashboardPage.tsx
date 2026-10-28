@@ -1,11 +1,12 @@
-import { CalendarClock, Copy, FilePlus2, FileStack, Info } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Clock, Copy, FilePlus2, FileStack, Info, XCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useCurrentUser } from '../auth/AuthContext'
 import BackendStatus from '../components/BackendStatus'
 import { Alert, Card, buttonStyles } from '../components/ui'
 import { useApiQuery } from '../hooks/useApiQuery'
-import { addDaysIso, ROLE_LABELS, STATUS_LABELS, todayIso } from '../lib/format'
+import { toQuery } from '../lib/api'
+import { addDaysIso, PENDING_STATUSES, ROLE_LABELS, STATUS_LABELS, todayIso } from '../lib/format'
 import { navItemsFor } from '../navigation'
 import type { DashboardSummary, FdrStatus, FdrSummary } from '../types'
 
@@ -42,10 +43,21 @@ function FdrOverview() {
   const data = summary.data
   const value = (n: number | undefined) => (data ? (n ?? 0) : '…')
   const statuses: FdrStatus[] = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'ACCEPTED', 'REJECTED']
+  const pending = data ? PENDING_STATUSES.reduce((total, s) => total + (data.by_status[s] ?? 0), 0) : undefined
 
   return (
     <section aria-labelledby="overview-title" aria-busy={summary.status === 'loading'}>
       <h2 id="overview-title" className="text-sm font-semibold text-slate-900">FDR overview</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <StatTile
+          label="Pending (submitted, under review or clarification)"
+          value={value(pending)}
+          to={`/fdr-records${toQuery({ status: PENDING_STATUSES })}`}
+          icon={<Clock className="size-5" />}
+        />
+        <StatTile label="Approved" value={value(data?.by_status.ACCEPTED)} to="/fdr-records?status=ACCEPTED" icon={<CheckCircle2 className="size-5" />} />
+        <StatTile label="Rejected" value={value(data?.by_status.REJECTED)} to="/fdr-records?status=REJECTED" icon={<XCircle className="size-5" />} />
+      </div>
       <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile label="FDR records" value={value(data?.total)} to="/fdr-records" icon={<FileStack className="size-5" />} />
         <StatTile

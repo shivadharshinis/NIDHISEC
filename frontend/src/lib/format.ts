@@ -63,6 +63,9 @@ export const STATUS_STYLES: Record<FdrStatus, string> = {
   ACCEPTED: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
 }
 
+/** Statuses still awaiting a final AICTE decision; shown together as "Pending". */
+export const PENDING_STATUSES: FdrStatus[] = ['SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUESTED']
+
 /** Mirrors REVIEW_TRANSITIONS in backend/app/services/fdrs.py (the backend enforces it). */
 export const REVIEW_TRANSITIONS: Record<FdrStatus, FdrStatus[]> = {
   SUBMITTED: ['UNDER_REVIEW', 'CLARIFICATION_REQUESTED', 'REJECTED'],
