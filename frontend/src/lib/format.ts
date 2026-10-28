@@ -102,8 +102,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 }
 
 export const OUTCOME_LABELS: Record<OutcomeType, string> = {
-  CONFIRMED_AGAINST_BANK_RECORDS: 'Confirmed against authorised bank records',
-  DETAILS_MISMATCH: 'Details mismatch',
+  CONFIRMED_AGAINST_BANK_RECORDS: 'Verified against bank records',
+  DETAILS_MISMATCH: 'Discrepancy found',
   ADDITIONAL_INFO_REQUIRED: 'Additional information required',
   UNABLE_TO_VERIFY: 'Unable to verify',
 }
@@ -123,7 +123,7 @@ export const OUTCOME_STYLES: Record<OutcomeType, string> = {
 }
 
 export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
-  ACTIVE: 'Active',
+  ACTIVE: 'Awaiting outcome',
   COMPLETED: 'Outcome recorded',
   SUPERSEDED: 'Reassigned',
   CANCELLED: 'Cancelled',

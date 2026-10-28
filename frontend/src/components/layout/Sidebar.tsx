@@ -64,8 +64,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       <div className="border-t border-white/10 px-5 py-4 text-[11px] leading-relaxed text-navy-400">
         AICTE Security Deposit / FDR Management Portal
-        <br />
-        Prototype build v0.1.0
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  Building2,
   CalendarClock,
   FileStack,
   FileText,
@@ -42,6 +43,15 @@ export const NAV_ITEMS: NavItem[] = [
     planned: [],
     implemented: true,
     roles: ['INSTITUTION', 'AICTE_OFFICIAL'],
+  },
+  {
+    path: '/colleges',
+    label: 'Colleges',
+    icon: Building2,
+    summary: 'Find a college by name and review the FDRs it has submitted.',
+    planned: [],
+    implemented: true,
+    roles: ['AICTE_OFFICIAL'],
   },
   {
     path: '/fdr-records',

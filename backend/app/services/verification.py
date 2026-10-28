@@ -258,6 +258,8 @@ def to_case_summary(assignment: VerificationAssignment) -> BankCaseSummary:
         bank_name=fdr.bank_name,
         institution=InstitutionBrief.model_validate(fdr.institution),
         outcome=assignment.outcome.outcome if assignment.outcome else None,
+        amount=fdr.amount if assignment.status == AssignmentStatus.ACTIVE else None,
+        maturity_date=fdr.maturity_date if assignment.status == AssignmentStatus.ACTIVE else None,
     )
 
 

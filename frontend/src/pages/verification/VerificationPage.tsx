@@ -3,10 +3,10 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useCurrentUser } from '../../auth/AuthContext'
 import { Alert, Card, PageHeader, Spinner, StatusBadge, buttonStyles } from '../../components/ui'
-import { AssignmentStatusBadge, OUTCOME_DISCLAIMER, OutcomeBadge } from '../../components/verification/VerificationPanel'
+import { AssignmentStatusBadge, OutcomeBadge } from '../../components/verification/VerificationPanel'
 import { useApiQuery } from '../../hooks/useApiQuery'
 import { toQuery } from '../../lib/api'
-import { formatDateTime } from '../../lib/format'
+import { formatDate, formatDateTime, formatINR } from '../../lib/format'
 import type { AssignmentQueueItem, AssignmentStatus, AwaitingDecisionItem, BankCaseSummary, Page } from '../../types'
 
 const PAGE_SIZE = 20
@@ -54,8 +54,7 @@ function AwaitingDecision() {
   return (
     <>
       <p className="text-sm text-slate-600">
-        A bank officer has recorded an outcome since your last decision on these records, oldest first. Open a record to read the
-        outcome and record your decision in its review panel. Nothing here is decided automatically.
+        Bank outcomes recorded since your last decision, oldest first. Open a record to review the evidence and accept or reject it.
       </p>
       {result.status === 'error' && (
         <Alert tone="error" title="Could not load the review queue" action={<button type="button" className={buttonStyles.secondary} onClick={result.reload}>Try again</button>}>
@@ -121,7 +120,7 @@ function AicteQueue() {
       <Tabs
         value={status}
         onChange={(v) => { setStatus(v); setPage(1) }}
-        options={[['AWAITING', 'Awaiting your decision'], ['ACTIVE', 'Active'], ['COMPLETED', 'Outcome recorded'], ['SUPERSEDED', 'Reassigned'], ['CANCELLED', 'Cancelled'], ['ALL', 'All']]}
+        options={[['AWAITING', 'Awaiting your decision'], ['ACTIVE', 'Awaiting bank outcome'], ['COMPLETED', 'Outcome recorded'], ['SUPERSEDED', 'Reassigned'], ['CANCELLED', 'Cancelled'], ['ALL', 'All']]}
       />
       {status === 'AWAITING' && <AwaitingDecision />}
       {status !== 'AWAITING' && result.status === 'error' && (
@@ -184,9 +183,8 @@ function OfficerCases() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="My verification cases" description="FDRs assigned to you by AICTE. You can open a case only while it is assigned to you." />
-      <Alert tone="info">{OUTCOME_DISCLAIMER}</Alert>
-      <Tabs value={state} onChange={(v) => { setState(v); setPage(1) }} options={[['active', 'Assigned to me'], ['closed', 'My case history']]} />
+      <PageHeader title="My verification cases" description="FDRs assigned to you by AICTE. Open a case to check it against your bank’s records and record the outcome." />
+      <Tabs value={state} onChange={(v) => { setState(v); setPage(1) }} options={[['active', 'Awaiting my outcome'], ['closed', 'Completed and closed']]} />
       {result.status === 'error' && (
         <Alert tone="error" title="Could not load your cases" action={<button type="button" className={buttonStyles.secondary} onClick={result.reload}>Try again</button>}>
           {result.error.message}
@@ -207,7 +205,11 @@ function OfficerCases() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-navy-700">{item.fdr_number}</p>
                     <p className="text-xs text-slate-600">{item.bank_name} · {item.institution.name} ({item.institution.code})</p>
-                    <p className="text-xs text-slate-500">Assigned {formatDateTime(item.assigned_at)}</p>
+                    <p className="text-xs text-slate-500">
+                      {item.amount && <span className="font-medium text-slate-700 tabular-nums">{formatINR(item.amount)} · </span>}
+                      {item.maturity_date && `matures ${formatDate(item.maturity_date)} · `}
+                      Assigned {formatDateTime(item.assigned_at)}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <AssignmentStatusBadge status={item.status} />

@@ -4,6 +4,7 @@ import AppLayout from './components/layout/AppLayout'
 import { NAV_ITEMS } from './navigation'
 import ActionCentrePage from './pages/ActionCentrePage'
 import AuditLogPage from './pages/AuditLogPage'
+import CollegesPage from './pages/CollegesPage'
 import DashboardPage from './pages/DashboardPage'
 import FdrDetailPage from './pages/fdrs/FdrDetailPage'
 import FdrEditPage from './pages/fdrs/FdrEditPage'
@@ -85,6 +86,15 @@ export default function App() {
             element={
               <RequireRole roles={['INSTITUTION', 'AICTE_OFFICIAL']}>
                 <ActionCentrePage />
+              </RequireRole>
+            }
+          />
+
+          <Route
+            path="colleges"
+            element={
+              <RequireRole roles={['AICTE_OFFICIAL']}>
+                <CollegesPage />
               </RequireRole>
             }
           />

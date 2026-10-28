@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, Copy, FilePlus2, FileStack, Info, Landmark, ShieldCheck } from 'lucide-react'
+import { CalendarClock, Copy, FilePlus2, FileStack, Info } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useCurrentUser } from '../auth/AuthContext'
@@ -8,24 +8,6 @@ import { useApiQuery } from '../hooks/useApiQuery'
 import { addDaysIso, ROLE_LABELS, STATUS_LABELS, todayIso } from '../lib/format'
 import { navItemsFor } from '../navigation'
 import type { DashboardSummary, FdrStatus, FdrSummary } from '../types'
-
-const PORTALS = [
-  {
-    icon: Building2,
-    title: 'Institution / College',
-    description: 'Submit FDRs, track review status and correct records when clarification is requested.',
-  },
-  {
-    icon: Landmark,
-    title: 'Bank Officer',
-    description: 'Checks FDRs assigned by AICTE against the bank’s own records and records an outcome.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'AICTE Official',
-    description: 'Search and review FDRs across institutions, examine possible duplicates and the audit trail.',
-  },
-]
 
 function StatTile({ label, value, to, icon }: { label: string; value: number | string; to?: string; icon: ReactNode }) {
   const body = (
@@ -98,7 +80,7 @@ function FdrOverview() {
         ))}
       </Card>
       <p className="mt-2 text-xs text-slate-500">
-        Counts reflect records submitted to NidhiSec. No status means an FDR has been confirmed authentic by its bank.
+        Counts of records submitted to NidhiSec.
       </p>
     </section>
   )
@@ -183,13 +165,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <Alert tone="info">
-        <strong>Available now:</strong> sign-in, FDR submission and correction, supporting-document upload with integrity
-        hashes, AICTE review status, possible-duplicate flags, bank verification assignments with officer-recorded outcomes, advisory screening for AICTE, maturity alerts,
-        renewal/replacement and release requests, notifications and the audit trail.{' '}
-        <strong>Not implemented yet:</strong> integration with bank or payment systems, and reports.
-      </Alert>
-
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {showFdrs && <FdrOverview />}
@@ -199,7 +174,7 @@ export default function DashboardPage() {
           <section aria-labelledby="modules-title">
             <h2 id="modules-title" className="text-sm font-semibold text-slate-900">Portal modules</h2>
             <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-              {modules.map(({ path, label, icon: Icon, summary, implemented }) => (
+              {modules.map(({ path, label, icon: Icon, summary }) => (
                 <li key={path}>
                   <Link
                     to={path}
@@ -209,34 +184,10 @@ export default function DashboardPage() {
                       <Icon className="size-5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-900">{label}</span>
-                        {implemented ? (
-                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                            Available
-                          </span>
-                        ) : (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                            Planned
-                          </span>
-                        )}
-                      </span>
+                      <span className="text-sm font-semibold text-slate-900">{label}</span>
                       <span className="mt-1 block text-xs leading-relaxed text-slate-600">{summary}</span>
                     </span>
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="portals-title">
-            <h2 id="portals-title" className="text-sm font-semibold text-slate-900">Stakeholder portals</h2>
-            <ul className="mt-3 grid gap-3 md:grid-cols-3">
-              {PORTALS.map(({ icon: Icon, title, description }) => (
-                <li key={title} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                  <Icon className="size-5 text-navy-600" />
-                  <h3 className="mt-2 text-sm font-semibold text-slate-900">{title}</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p>
                 </li>
               ))}
             </ul>
@@ -251,8 +202,8 @@ export default function DashboardPage() {
               <Info className="size-4 text-navy-500" /> About record status
             </h2>
             <p className="mt-2">
-              Saving an FDR in NidhiSec records the details the institution entered. It does not confirm that the FDR
-              is genuine. A bank officer’s recorded outcome is their own attestation, and AICTE decides separately; NidhiSec has no connection to bank systems.
+              A submitted FDR holds the institution’s details. A bank officer records whether it matches their bank’s records,
+              and AICTE makes the final decision.
             </p>
           </Card>
         </div>

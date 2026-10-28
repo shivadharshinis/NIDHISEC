@@ -39,10 +39,6 @@ export default function Header({ onOpenNav }: HeaderProps) {
           <h1 className="truncate text-base font-semibold text-slate-900">{title}</h1>
         </div>
 
-        <span className="hidden items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 xl:inline-flex">
-          Development prototype
-        </span>
-
         <NotificationBell />
 
         <div className="hidden min-w-0 text-right md:block">

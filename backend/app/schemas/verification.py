@@ -148,6 +148,9 @@ class BankCaseSummary(BaseModel):
     bank_name: str
     institution: InstitutionBrief
     outcome: VerificationOutcomeType | None
+    # Only while the case is open, matching the case view.
+    amount: Decimal | None = None
+    maturity_date: date | None = None
 
 
 class BankCase(BaseModel):

@@ -10,6 +10,18 @@ export interface InstitutionBrief {
   code: string
 }
 
+/** AICTE college directory entry (GET /institutions/search). */
+export interface InstitutionSummary extends InstitutionBrief {
+  state: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  fdr_total: number
+  fdrs_open_review: number
+  fdrs_accepted: number
+  fdrs_rejected: number
+  latest_submission_at: string | null
+}
+
 export interface User {
   id: number
   full_name: string
@@ -252,6 +264,9 @@ export interface BankCaseSummary {
   bank_name: string
   institution: InstitutionBrief
   outcome: OutcomeType | null
+  /** Only while the case is open. */
+  amount: string | null
+  maturity_date: string | null
 }
 
 export interface BankCase {
