@@ -33,7 +33,8 @@ from app.schemas.fdr import IFSC_PATTERN, MAX_AMOUNT, MAX_TENURE_YEARS, today_is
 from app.services import document_storage as storage
 from app.services import fdrs as fdr_service
 from app.services.audit import AuditAction, record_audit
-from app.services.extraction import EXTRACTOR_VERSION, ExtractionResult, extract_document
+from app.core.config import get_settings
+from app.services.extraction import EXTRACTOR_VERSION, OCR_METHOD, ExtractionResult, extract_document
 from app.services.normalization import normalize_bank_name, normalize_fdr_number
 
 logger = logging.getLogger(__name__)
@@ -241,6 +242,8 @@ def _consistency_findings(fdr: FDR, document: FDRDocument, result: ExtractionRes
     doc_ref = {"document_id": document.id, "document_name": document.original_filename,
                "document_type": document.document_type.value}
 
+    read_by_ocr = result.method == OCR_METHOD
+
     def compare(field_name: str, record_value: str | None, matches, code: str, severity: FindingSeverity,
                 title: str, reason: str) -> None:
         candidates = result.values(field_name)
@@ -258,6 +261,12 @@ def _consistency_findings(fdr: FDR, document: FDRDocument, result: ExtractionRes
                               "document_values": [{"value": c.value, "snippet": c.raw, "page": c.page} for c in candidates]},
                 ))
             return
+        if read_by_ocr:
+            # An OCR misread must not look like a high-priority discrepancy.
+            if severity == FindingSeverity.HIGH:
+                severity = FindingSeverity.WARNING
+            reason = (f"{reason} The document value was read by OCR and may be a recognition error: "
+                      "check it against the original document before treating this as a discrepancy.")
         findings.append(Finding(
             code, FindingCategory.DOCUMENT_CONSISTENCY, severity, title,
             f"The value read from “{document.original_filename}” differs from the submitted record.",
@@ -380,7 +389,8 @@ def document_rules(db: Session, fdr: FDR) -> tuple[list[Finding], list[dict[str,
                 "DOC_NO_TEXT_LAYER", FindingCategory.DOCUMENT_EXTRACTION, FindingSeverity.INFO,
                 "PDF has no readable text",
                 f"“{document.original_filename}” appears to be a scanned image without a text layer.",
-                "OCR is not available; compare this document with the record by eye.",
+                "OCR could not read it (see the document reading note); compare this document with the record by eye."
+                if get_settings().ocr_enabled else "OCR is not available; compare this document with the record by eye.",
                 document_id=document.id, observed=doc_ref,
             ))
         elif result.status == "FAILED":
@@ -389,6 +399,14 @@ def document_rules(db: Session, fdr: FDR) -> tuple[list[Finding], list[dict[str,
                 "Document could not be parsed",
                 f"“{document.original_filename}” could not be read by the PDF text reader.",
                 "The file may be damaged or unusual; it needs manual review.",
+                document_id=document.id, observed=doc_ref,
+            ))
+        if result.method == OCR_METHOD:
+            findings.append(Finding(
+                "DOC_READ_BY_OCR", FindingCategory.DOCUMENT_EXTRACTION, FindingSeverity.INFO,
+                "Document was read by OCR",
+                f"“{document.original_filename}” has no text layer, so its values were read from page images by OCR.",
+                "OCR can misread characters; check each value read from this document against the original.",
                 document_id=document.id, observed=doc_ref,
             ))
         findings.extend(_consistency_findings(fdr, document, result))

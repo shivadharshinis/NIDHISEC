@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     # Completing a renewal/replacement requires the successor FDR to be ACCEPTED by AICTE.
     lifecycle_require_successor_acceptance: bool = True
 
+    # OCR fallback for scanned PDFs (no text layer), using a local Tesseract install.
+    ocr_enabled: bool = False
+    # Full path to tesseract(.exe) when it is not on PATH.
+    ocr_tesseract_cmd: str | None = None
+    ocr_page_timeout_seconds: int = Field(default=15, ge=1, le=120)
+
     # Failed-login throttling (per email address, in-process).
     login_max_failures: int = Field(default=5, ge=1)
     login_lockout_minutes: int = Field(default=15, ge=1)

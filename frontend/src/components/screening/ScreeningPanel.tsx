@@ -251,7 +251,9 @@ function RunView({ fdrId, run, onReviewed }: { fdrId: number; run: RunDetail; on
               <li key={doc.document_id} className="text-xs">
                 <p className="font-medium break-all text-slate-900">{doc.document_name}</p>
                 <p className="text-slate-600">{EXTRACTION_STATUS_LABELS[doc.status] ?? doc.status}{doc.method && ` · ${doc.method}`}{doc.pages_read ? ` · ${doc.pages_read} page(s)` : ''}</p>
-                {doc.note && <p className="text-slate-500">{doc.note}</p>}
+                {doc.note && (
+                  <p className={doc.method === 'tesseract-ocr' ? 'font-medium text-amber-800' : 'text-slate-500'}>{doc.note}</p>
+                )}
                 {doc.fields.length > 0 && (
                   <table className="mt-1 text-left">
                     <tbody>
@@ -268,7 +270,7 @@ function RunView({ fdrId, run, onReviewed }: { fdrId: number; run: RunDetail; on
           </ul>
         )}
         <p className="mt-2 text-[11px] text-slate-500">
-          Values are read only from a PDF’s text layer, only when clearly labelled. No OCR, no external services. Reading a value does not show the document is genuine.
+          Values are read only when clearly labelled: from a PDF’s text layer, or by local OCR for scanned PDFs where it is enabled. No external services. Reading a value does not show the document is genuine.
         </p>
       </Collapsible>
     </>

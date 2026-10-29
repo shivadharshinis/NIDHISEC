@@ -7,9 +7,14 @@ What this does:
     dates, IFSC, bank name, depositor/holder) with explicit patterns, keeping a
     short source snippet and page number for each value.
 
+  * Optionally (NIDHISEC_OCR_ENABLED), when a PDF has no text layer at all,
+    renders its first pages with pypdfium2 and reads them with a local
+    Tesseract install. The same labelled-field patterns are applied, and the
+    result is marked as OCR so screening treats its values with caution.
+
 What it does not do:
-  * No OCR: images and scanned PDFs without a text layer are reported as
-    needing manual review.
+  * No OCR for image uploads, and no OCR at all unless it is enabled and
+    Tesseract is installed: such documents are reported as needing manual review.
   * No guessing: a field is reported only when a labelled pattern matches;
     missing values stay missing.
   * Extraction proves nothing about whether a document is genuine.
@@ -20,15 +25,19 @@ returned or stored, only the matched snippets.
 
 import io
 import logging
+import math
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
+from app.core.config import get_settings
+from app.services.file_validation import MAX_IMAGE_PIXELS
+
 logger = logging.getLogger(__name__)
 
-EXTRACTOR_VERSION = "pdf-text/1.0"
+EXTRACTOR_VERSION = "pdf-text/1.1+ocr-fallback"
 MAX_PAGES = 20
 MAX_TEXT_CHARS = 200_000
 SNIPPET_CHARS = 120
@@ -199,9 +208,8 @@ class PdfTextExtractor:
             return ExtractionResult("FAILED", self.method, note="The PDF could not be read; manual review needed.")
 
         if not any(text.strip() for text in pages):
-            return ExtractionResult(
-                "NO_TEXT_LAYER", self.method, len(pages),
-                note="No readable text (probably a scanned image). OCR is not available; manual review needed.",
+            return ocr_fallback(data, len(pages)) or ExtractionResult(
+                "NO_TEXT_LAYER", self.method, len(pages), note=NO_TEXT_NOTE,
             )
         fields = extract_fields_from_text(pages)
         note = f"Only the first {len(pages)} page(s) were read." if truncated else None
@@ -209,6 +217,129 @@ class PdfTextExtractor:
             return ExtractionResult("NO_FIELDS_FOUND", self.method, len(pages), [],
                                     note or "Text was readable but no supported labelled fields were found.")
         return ExtractionResult("EXTRACTED", self.method, len(pages), fields, note)
+
+
+# ---------- OCR fallback for scanned PDFs ----------
+
+OCR_METHOD = "tesseract-ocr"
+OCR_MAX_PAGES = 3
+OCR_DPI = 200
+OCR_WARNING = (
+    "Read by OCR from a scanned image. Recognition errors are possible: check every value against the "
+    "original document before relying on it."
+)
+NO_TEXT_NOTE = "No readable text (probably a scanned image). OCR is not available; manual review needed."
+
+
+class OcrEngine(Protocol):
+    def available(self) -> bool: ...
+    def image_to_text(self, image, timeout_seconds: int) -> str: ...
+
+
+class TesseractEngine:
+    """Local Tesseract through pytesseract. Nothing leaves the machine."""
+
+    @staticmethod
+    def _pytesseract():
+        import pytesseract
+
+        command = get_settings().ocr_tesseract_cmd
+        if command:
+            pytesseract.pytesseract.tesseract_cmd = command
+        return pytesseract
+
+    def available(self) -> bool:
+        try:
+            self._pytesseract().get_tesseract_version()
+            return True
+        except Exception:  # not installed, not on PATH, or cannot start
+            return False
+
+    def image_to_text(self, image, timeout_seconds: int) -> str:
+        pytesseract = self._pytesseract()
+        try:
+            return pytesseract.image_to_string(image, lang="eng", timeout=timeout_seconds)
+        except RuntimeError as exc:
+            # pytesseract kills the process and raises RuntimeError("Tesseract process timeout").
+            if "timeout" in str(exc).lower():
+                raise TimeoutError(str(exc)) from exc
+            raise
+
+
+OCR_ENGINE: OcrEngine = TesseractEngine()
+
+
+def render_pdf_pages(data: bytes, max_pages: int) -> tuple[list, int]:
+    """Render the first pages as images within the upload image-pixel limit. Returns (images, page count)."""
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument(data)
+    try:
+        images = []
+        for index in range(min(len(document), max_pages)):
+            page = document[index]
+            try:
+                width, height = page.get_size()  # in points (1/72 inch)
+                if width <= 0 or height <= 0:
+                    raise ValueError("page has no size")
+                scale = OCR_DPI / 72
+                if width * height * scale * scale > MAX_IMAGE_PIXELS:
+                    scale = math.sqrt(MAX_IMAGE_PIXELS / (width * height))
+                bitmap = page.render(scale=scale)
+                images.append(bitmap.to_pil().copy())  # copy: the bitmap's memory is freed on close
+                bitmap.close()
+            finally:
+                page.close()
+        return images, len(document)
+    finally:
+        document.close()
+
+
+def ocr_fallback(data: bytes, pages_without_text: int) -> ExtractionResult | None:
+    """OCR a PDF that has no text layer.
+
+    Returns None when OCR is disabled, so the caller keeps its usual result.
+    Any problem (engine missing, render or OCR error, timeout, nothing read)
+    gives the usual NO_TEXT_LAYER result with a note saying why.
+    """
+    settings = get_settings()
+    if not settings.ocr_enabled:
+        return None
+
+    def no_text(reason: str) -> ExtractionResult:
+        return ExtractionResult(
+            "NO_TEXT_LAYER", PdfTextExtractor.method, pages_without_text,
+            note=f"No readable text (probably a scanned image). OCR {reason}; manual review needed.",
+        )
+
+    if not OCR_ENGINE.available():
+        return no_text("is enabled but Tesseract was not found")
+    try:
+        images, total_pages = render_pdf_pages(data, OCR_MAX_PAGES)
+        texts: list[str] = []
+        length = 0
+        for image in images:
+            text = OCR_ENGINE.image_to_text(image, settings.ocr_page_timeout_seconds) or ""
+            length += len(text)
+            if length > MAX_TEXT_CHARS:
+                break
+            texts.append(text)
+    except TimeoutError:
+        logger.warning("OCR timed out", exc_info=True)
+        return no_text(f"timed out (limit {settings.ocr_page_timeout_seconds}s per page)")
+    except Exception:
+        logger.warning("OCR failed", exc_info=True)
+        return no_text("could not read the pages")
+
+    if not any(text.strip() for text in texts):
+        return no_text("found no readable text")
+    notes = [OCR_WARNING]
+    if total_pages > len(texts):
+        notes.append(f"Only the first {len(texts)} page(s) were read by OCR.")
+    fields = extract_fields_from_text(texts)
+    if not fields:
+        notes.append("No supported labelled fields were found.")
+    return ExtractionResult("EXTRACTED" if fields else "NO_FIELDS_FOUND", OCR_METHOD, len(texts), fields, " ".join(notes))
 
 
 EXTRACTORS: list[Extractor] = [PdfTextExtractor()]

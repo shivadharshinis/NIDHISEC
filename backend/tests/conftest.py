@@ -16,6 +16,8 @@ os.environ["NIDHISEC_DATABASE_URL"] = f"sqlite:///{(_TMP_DIR / 'test.db').as_pos
 os.environ["NIDHISEC_ENVIRONMENT"] = "test"
 os.environ["NIDHISEC_JWT_SECRET"] = secrets.token_urlsafe(48)
 os.environ["NIDHISEC_DOCUMENT_STORAGE_DIR"] = (_TMP_DIR / "documents").as_posix()
+# A developer's .env may enable OCR; tests switch it on explicitly with a fake engine.
+os.environ["NIDHISEC_OCR_ENABLED"] = "false"
 
 import shutil  # noqa: E402
 

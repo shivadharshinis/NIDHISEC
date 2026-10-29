@@ -10,3 +10,7 @@ PyJWT==2.10.1
 pwdlib[argon2]==0.2.1
 argon2-cffi==23.1.0
 pypdf==6.20.1
+# Optional OCR fallback for scanned PDFs (also needs a local Tesseract install; off by default)
+pypdfium2==5.14.0
+pytesseract==0.3.13
+Pillow==13.0.0
